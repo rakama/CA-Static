@@ -16,9 +16,18 @@
 
 package org.craftingazeroth.plugins.cas;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Player;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -35,13 +44,19 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class CAStatic extends JavaPlugin implements Listener
 {
-    // TODO: fix redstone
+    final static String yaml_name = "prohibited.yml";
+    final static String section_name = "prohibited-block-updates";
     
-    boolean enabled;
+    final static String[] default_prohibited = { 
+        "water", "stationary_water", "lava", "stationary_lava", 
+        "sand", "gravel", "long_grass", "dead_bush", "yellow_flower", 
+        "red_rose",  "brown_mushroom", "red_mushroom", "fire", "soil", 
+        "snow", "ice", "snow_block", "cactus", "soul_sand", "vine" };
 
+    Set<Material> prohibited;
+    
     public CAStatic()
     {
-        enabled = true;
     }
 
     public void onDisable()
@@ -51,8 +66,48 @@ public class CAStatic extends JavaPlugin implements Listener
     public void onEnable()
     {
         getServer().getPluginManager().registerEvents(this, this);
+
+        YamlConfiguration yaml = loadYamlFile(new File(getDataFolder(), yaml_name));
+        List<String> plist = yaml.getStringList(section_name);
+        
+        prohibited = new HashSet<Material>();
+        for(String s : plist)
+        {
+            Material mat = Material.getMaterial(s.toUpperCase());
+            
+            if(mat != null)
+                prohibited.add(mat);
+            else
+                Bukkit.getLogger().info("INVALID MATERIAL: " + s);
+        }
     }
 
+    protected YamlConfiguration loadYamlFile(File file)
+    {
+        if(!file.exists())
+            return createDefaultYamlFile(file);
+        else
+            return YamlConfiguration.loadConfiguration(file);
+    }
+    
+    protected YamlConfiguration createDefaultYamlFile(File file)
+    {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.createSection(section_name);
+        yaml.set(section_name, Arrays.asList(default_prohibited));
+        
+        try
+        {
+            yaml.save(file);
+        }
+        catch(IOException e)
+        {
+            e.printStackTrace();
+        }
+        
+        return yaml;
+    }
+    
     @EventHandler
     public void onMapInitialize(MapInitializeEvent event)
     {   
@@ -61,8 +116,11 @@ public class CAStatic extends JavaPlugin implements Listener
     @EventHandler
     public void onBlockPhysics(BlockPhysicsEvent event)
     {
+        Material new_material = event.getChangedType();
+        Material material = event.getBlock().getType();
+        
         // stop sand and gravel from falling
-        if(enabled)
+        if(prohibited.contains(new_material) || prohibited.contains(material))
             event.setCancelled(true);
     }
 
@@ -70,7 +128,7 @@ public class CAStatic extends JavaPlugin implements Listener
     public void onBlockBurn(BlockBurnEvent event)
     {
         // stop fire from destroying blocks
-        if(enabled)
+        if(prohibited.contains(Material.FIRE))
             event.setCancelled(true);
     }
 
@@ -78,7 +136,7 @@ public class CAStatic extends JavaPlugin implements Listener
     public void onBlockIgnite(BlockIgniteEvent event)
     {
         // stop fire from spreading or igniting naturally
-        if(enabled 
+        if(prohibited.contains(Material.FIRE)
         &&(event.getCause() == BlockIgniteEvent.IgniteCause.SPREAD
         || event.getCause() == BlockIgniteEvent.IgniteCause.LAVA 
         || event.getCause() == BlockIgniteEvent.IgniteCause.LIGHTNING))
@@ -88,64 +146,75 @@ public class CAStatic extends JavaPlugin implements Listener
     @EventHandler
     public void onBlockFromTo(BlockFromToEvent event)
     {
+        Material material = event.getBlock().getType();
+
         // stop liquids from flowing
-        if(enabled)
+        if(prohibited.contains(material))
             event.setCancelled(true);
     }
 
     @EventHandler
     public void onBlockFade(BlockFadeEvent event)
     {
+        Material material = event.getBlock().getType();
+        
         // stop ice and snow from melting
-        if(enabled)
+        if(prohibited.contains(material))
             event.setCancelled(true);
     }
 
     @EventHandler
     public void onBlockGrow(BlockGrowEvent event)
     {
+        Material new_material = event.getNewState().getData().getItemType();
+        
         // stop cacti and vines from growing
-        if(enabled)
-        {
-            int id = event.getNewState().getBlock().getTypeId();     
-            if(id == 81 || id == 106)
-                event.setCancelled(true);
-        }
+        if(prohibited.contains(new_material))
+            event.setCancelled(true);
     }
 
     @EventHandler
     public void onBlockForm(BlockFormEvent event)
     {
+        Material new_material = event.getNewState().getData().getItemType();
+        
         // stop snow and ice from forming
-        if(enabled)
+        if(prohibited.contains(new_material))
             event.setCancelled(true);
     }
 
     @EventHandler
     public void onBlockSpread(BlockSpreadEvent event)
     {
+        Material material = event.getSource().getType();
+
         // stop fire and mushrooms from spreading
-        if(enabled)
+        if(prohibited.contains(material))
             event.setCancelled(true);
     }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event)
     {
-        Block block = event.getBlock();
-        if(block.getTypeId() != 123)
-            return;
-        
-        event.setCancelled(true);
-        
+        Block block = event.getBlock();        
+        if(block.getType() == Material.REDSTONE_LAMP_OFF)
+        {        
+            // turn redstone lamp on
+            event.setCancelled(true);
+            lightRedstoneLamp(block);
+        }
+    }   
+    
+    private void lightRedstoneLamp(Block block)
+    {
         Location below = block.getLocation().subtract(0, 1, 0);        
         Block temp = block.getWorld().getBlockAt(below);
         
         int tempid = temp.getTypeId();
         byte tempdata = temp.getData();
         
-        temp.setTypeId(152, false);
-        block.setTypeId(124, false);
+        temp.setType(Material.REDSTONE_BLOCK);
+        block.setType(Material.REDSTONE_LAMP_ON);
         temp.setTypeIdAndData(tempid, tempdata, false);
-    }   
+    }
 }

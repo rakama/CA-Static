@@ -1,7 +1,7 @@
 author: RamsesA
 database: false
 generator: http://dinnerbone.com/minecraft/tools/pluginator/
-main: com.github.rakama.plugins.cas.CAStatic
+main: org.craftingazeroth.plugins.cas.CAStatic
 name: CA-Static
 startup: postworld
 version: '1.0'
