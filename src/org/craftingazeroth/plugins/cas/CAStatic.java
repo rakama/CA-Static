@@ -51,7 +51,8 @@ public class CAStatic extends JavaPlugin implements Listener
         "water", "stationary_water", "lava", "stationary_lava", 
         "sand", "gravel", "long_grass", "dead_bush", "yellow_flower", 
         "red_rose",  "brown_mushroom", "red_mushroom", "fire", "soil", 
-        "snow", "ice", "snow_block", "cactus", "soul_sand", "vine" };
+        "snow", "ice", "snow_block", "cactus", "soul_sand", "vine", 
+        "redstone_lamp_on", "redstone_lamp_off", "portal"};
 
     Set<Material> prohibited;
     
